@@ -1,13 +1,12 @@
-package com.oliver
-
-import java.io.File
-import java.time.LocalDate
-import java.time.format.DateTimeFormatter
+package com.yangtzelsl
 
 import org.apache.hudi.config.HoodieWriteConfig
 import org.apache.hudi.{DataSourceReadOptions, DataSourceWriteOptions}
 import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
 
+import java.io.File
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 import scala.reflect.io.Directory
 
 
@@ -15,28 +14,26 @@ case class Album(albumId: Long, title: String, tracks: Array[String], updateDate
 
 
 /**
-  * This is a self contained example.
-  *
-  * @author oliver mascarenhas
-  */
+ * This is a self contained example.
+ *
+ * @author yangtzelsl
+ */
 object App {
-  private val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
+
   val basePath = "/tmp/store"
-
-  def dateToLong(dateString: String): Long = LocalDate.parse(dateString, formatter).toEpochDay
-
+  private val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
   private val INITIAL_ALBUM_DATA = Seq(
     Album(800, "6 String Theory", Array("Lay it down", "Am I Wrong", "68"), dateToLong("2019-12-01")),
     Album(801, "Hail to the Thief", Array("2+2=5", "Backdrifts"), dateToLong("2019-12-01")),
     Album(801, "Hail to the Thief", Array("2+2=5", "Backdrifts", "Go to sleep"), dateToLong("2019-12-03"))
   )
-
   private val UPSERT_ALBUM_DATA = Seq(
     Album(800, "6 String Theory - Special", Array("Jumpin' the blues", "Bluesnote", "Birth of blues"), dateToLong("2020-01-03")),
     Album(802, "Best Of Jazz Blues", Array("Jumpin' the blues", "Bluesnote", "Birth of blues"), dateToLong("2020-01-04")),
     Album(803, "Birth of Cool", Array("Move", "Jeru", "Moon Dreams"), dateToLong("2020-02-03"))
   )
 
+  def dateToLong(dateString: String): Long = LocalDate.parse(dateString, formatter).toEpochDay
 
   def main(args: Array[String]) {
 
@@ -64,6 +61,13 @@ object App {
 
   }
 
+  /**
+   * 增量查询
+   *
+   * @param spark
+   * @param basePath
+   * @param tableName
+   */
   private def incrementalQuery(spark: SparkSession, basePath: String, tableName: String): Unit = {
     spark.read
       .format("hudi")
@@ -74,6 +78,13 @@ object App {
 
   }
 
+  /**
+   * 删除查询
+   *
+   * @param spark
+   * @param basePath
+   * @param tableName
+   */
   private def deleteQuery(spark: SparkSession, basePath: String, tableName: String): Unit = {
     val deleteKeys = Seq(
       Album(803, "", null, 0l),
@@ -95,15 +106,32 @@ object App {
     spark.read.format("hudi").load(s"$basePath/$tableName/*").show()
   }
 
+  /**
+   * 清空目录
+   */
   private def clearDirectory(): Unit = {
     val directory = new Directory(new File(basePath))
     directory.deleteRecursively()
   }
 
+  /**
+   * 快照查询
+   *
+   * @param spark
+   * @param tableName
+   */
   private def snapshotQuery(spark: SparkSession, tableName: String): Unit = {
     spark.read.format("hudi").load(s"$basePath/$tableName/*").show()
   }
 
+  /**
+   * 更新查询
+   *
+   * @param albumDf
+   * @param tableName
+   * @param key
+   * @param combineKey
+   */
   private def upsert(albumDf: DataFrame, tableName: String, key: String, combineKey: String): Unit = {
     albumDf.write
       .format("hudi")
