@@ -12,6 +12,8 @@ import scala.reflect.io.Directory
 
 case class Album(albumId: Long, title: String, tracks: Array[String], updateDate: Long)
 
+case class AlbumInc(albumId: Long, title: String, tracks: Array[String], Inc: String, updateDate: Long, Inc1: String)
+
 
 /**
  * This is a self contained example.
@@ -24,13 +26,15 @@ object App {
   private val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
   private val INITIAL_ALBUM_DATA = Seq(
     Album(800, "6 String Theory", Array("Lay it down", "Am I Wrong", "68"), dateToLong("2019-12-01")),
+    Album(800, "6 String Theory jj", Array("Lay it down", "Am I Wrong", "69"), dateToLong("2019-12-01")),
     Album(801, "Hail to the Thief", Array("2+2=5", "Backdrifts"), dateToLong("2019-12-01")),
     Album(801, "Hail to the Thief", Array("2+2=5", "Backdrifts", "Go to sleep"), dateToLong("2019-12-03"))
   )
   private val UPSERT_ALBUM_DATA = Seq(
-    Album(800, "6 String Theory - Special", Array("Jumpin' the blues", "Bluesnote", "Birth of blues"), dateToLong("2020-01-03")),
-    Album(802, "Best Of Jazz Blues", Array("Jumpin' the blues", "Bluesnote", "Birth of blues"), dateToLong("2020-01-04")),
-    Album(803, "Birth of Cool", Array("Move", "Jeru", "Moon Dreams"), dateToLong("2020-02-03"))
+    AlbumInc(800, "6 String Theory", Array("Jumpin' the blues", "Bluesnote", "Birth of blues"), "", dateToLong("2019-12-01"), null),
+    AlbumInc(801, "Hail to the Thief", Array("2+2=5 ssss", "Backdrifts"), "ll", dateToLong("2019-12-01"), null),
+    //    Album(802, "Best Of Jazz Blues", Array("Jumpin' the blues", "Bluesnote", "Birth of blues"), dateToLong("2020-01-04")),
+    //    Album(803, "Birth of Cool", Array("Move", "Jeru", "Moon Dreams"), dateToLong("2020-02-03"))
   )
 
   def dateToLong(dateString: String): Long = LocalDate.parse(dateString, formatter).toEpochDay
@@ -55,9 +59,9 @@ object App {
     upsert(UPSERT_ALBUM_DATA.toDF(), tableName, "albumId", "updateDate")
     snapshotQuery(spark, tableName)
 
-    incrementalQuery(spark, basePath, tableName)
+    //incrementalQuery(spark, basePath, tableName)
 
-    deleteQuery(spark, basePath, tableName)
+    //deleteQuery(spark, basePath, tableName)
 
   }
 
@@ -96,10 +100,10 @@ object App {
     val df = deleteKeys.toDF()
 
     df.write.format("hudi")
+      .option(DataSourceWriteOptions.OPERATION_OPT_KEY, DataSourceWriteOptions.DELETE_OPERATION_OPT_VAL)
       .option(DataSourceWriteOptions.TABLE_TYPE_OPT_KEY, DataSourceWriteOptions.COW_TABLE_TYPE_OPT_VAL)
       .option(DataSourceWriteOptions.RECORDKEY_FIELD_OPT_KEY, "albumId")
       .option(HoodieWriteConfig.TABLE_NAME, tableName)
-      .option(DataSourceWriteOptions.OPERATION_OPT_KEY, DataSourceWriteOptions.DELETE_OPERATION_OPT_VAL)
       .mode(SaveMode.Append) // Only Append Mode is supported for Delete.
       .save(s"$basePath/$tableName/")
 
@@ -135,12 +139,15 @@ object App {
   private def upsert(albumDf: DataFrame, tableName: String, key: String, combineKey: String): Unit = {
     albumDf.write
       .format("hudi")
-      .option(DataSourceWriteOptions.TABLE_TYPE_OPT_KEY, DataSourceWriteOptions.COW_TABLE_TYPE_OPT_VAL)
-      .option(DataSourceWriteOptions.RECORDKEY_FIELD_OPT_KEY, key)
-      .option(DataSourceWriteOptions.PRECOMBINE_FIELD_OPT_KEY, combineKey)
-      .option(HoodieWriteConfig.TABLE_NAME, tableName)
       .option(DataSourceWriteOptions.OPERATION_OPT_KEY, DataSourceWriteOptions.UPSERT_OPERATION_OPT_VAL)
+      .option(DataSourceWriteOptions.TABLE_TYPE_OPT_KEY, DataSourceWriteOptions.COW_TABLE_TYPE_OPT_VAL)
+      .option(DataSourceWriteOptions.RECORDKEY_FIELD_OPT_KEY, "albumId, title")
+      .option(DataSourceWriteOptions.PRECOMBINE_FIELD_OPT_KEY, combineKey)
+      .option(DataSourceWriteOptions.PARTITIONPATH_FIELD_OPT_KEY, "updateDate")
+      .option(DataSourceWriteOptions.KEYGENERATOR_CLASS_OPT_KEY,"org.apache.hudi.keygen.ComplexKeyGenerator")
+      .option(HoodieWriteConfig.TABLE_NAME, tableName)
       .option("hoodie.upsert.shuffle.parallelism", "2")
+
       .mode(SaveMode.Append)
       .save(s"$basePath/$tableName/")
   }
