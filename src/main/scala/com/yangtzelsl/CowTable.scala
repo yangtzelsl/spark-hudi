@@ -139,8 +139,12 @@ object App {
   private def upsert(albumDf: DataFrame, tableName: String, key: String, combineKey: String): Unit = {
     albumDf.write
       .format("hudi")
+      // 默认模式，更新并插入
       .option(DataSourceWriteOptions.OPERATION_OPT_KEY, DataSourceWriteOptions.UPSERT_OPERATION_OPT_VAL)
-      .option(DataSourceWriteOptions.TABLE_TYPE_OPT_KEY, DataSourceWriteOptions.COW_TABLE_TYPE_OPT_VAL)
+      // 写时复制
+//      .option(DataSourceWriteOptions.TABLE_TYPE_OPT_KEY, DataSourceWriteOptions.COW_TABLE_TYPE_OPT_VAL)
+      // 读时合并
+      .option(DataSourceWriteOptions.TABLE_TYPE_OPT_KEY, DataSourceWriteOptions.MOR_TABLE_TYPE_OPT_VAL)
       .option(DataSourceWriteOptions.RECORDKEY_FIELD_OPT_KEY, "albumId, title")
       .option(DataSourceWriteOptions.PRECOMBINE_FIELD_OPT_KEY, combineKey)
       .option(DataSourceWriteOptions.PARTITIONPATH_FIELD_OPT_KEY, "updateDate")
